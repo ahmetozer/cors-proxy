@@ -1,0 +1,12 @@
+{
+    "name" : "cors-proxy",
+    "description" : "JavaScript's functional programming helper library.",
+    "homepage" : "https://gitlab.com/mycontainers/cors-proxy",
+    "keywords" : ["util", "functional", "server", "cors", "proxy"],
+    "author" : "Ahmet OZER <opensource@ahmetozer.org>",
+    "contributors" : [],
+    "dependencies" : [ "jquery", "https", "fs"],
+    "repository" : {"type": "git", "url": "https://gitlab.com/mycontainers/cors-proxy"},
+    "main" : "underscore.js",
+    "version" : "1.1.6"
+  }

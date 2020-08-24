@@ -1,0 +1,10 @@
+{
+    "origins" : [
+        "ahmetozer.org",
+        "apicors.ahmetozer.org"
+    ],
+
+    "hosts" : [
+        "hub.docker.com"
+    ]
+}
