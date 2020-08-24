@@ -5,7 +5,8 @@ COPY . .
 RUN npm install
 
 FROM alpine as mainImage
-RUN apk add openssl nodejs
 COPY --from=depencyInstall /srv /srv
+RUN apk add openssl nodejs ;\
+chmod +x /srv/docker_run.sh
 WORKDIR /srv
 CMD [ "/srv/docker_run.sh" ]
