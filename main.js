@@ -1,4 +1,6 @@
 const fs = require('fs');
+const { URL } = require('url');
+const  URL2 = require('url');
 
 const https = require('https');
 
@@ -34,7 +36,6 @@ if (RegExp('^\\d+$').test(process.env.loadint)){
 
 
 function extractHostname(url) {
-    url = url.substring(1)
     let hostname;
     if (url.indexOf("//") > -1) {
         hostname = url.split('/')[2];
@@ -49,8 +50,6 @@ function extractHostname(url) {
     return hostname;
 }
 
-
-
 // Remove scheme and hosts from url
 
 function newUrl(url,host) {
@@ -58,36 +57,6 @@ function newUrl(url,host) {
 }
 
 // Control Origin and Host
-
-function originAndHostControl(origin,host) {
-
-    if ( (origin != null || ( cors_proxy_config.origins == null || cors_proxy_config.origins == "" ) )&& ( host != null || host != "")) {
-        if ( (cors_proxy_config.origins != null && cors_proxy_config.origins != "" ) && (cors_proxy_config.hosts != null && cors_proxy_config.hosts != "" ) ) {
-          //if control host and origins
-          origin = extractHostname(origin)
-          return cors_proxy_config.origins.includes(origin) && cors_proxy_config.hosts.includes(host)
-
-
-        } else if ( (cors_proxy_config.origins == null || cors_proxy_config.origins == "" ) && (cors_proxy_config.hosts != null && cors_proxy_config.hosts != "" ) ) {
-           // If only control hosts
-          return cors_proxy_config.hosts.includes(host)
-
-
-        } else if ( (cors_proxy_config.origins != null && cors_proxy_config.origins != "" ) && (cors_proxy_config.hosts == null || cors_proxy_config.hosts == "" ) ) {
-          // If only control origins
-          return cors_proxy_config.origins.includes(origin)
-
-
-        } else {
-          // If origin and host variable is not set in config
-          return true
-        }
-      } else {
-        return false
-    }
-
-
-}
 
 
 // Load configuration from config url
@@ -118,7 +87,7 @@ function originAndHostControl(origin,host) {
     
         configLastUpdate = secondsSinceEpoch
         cors_proxy_config = JSON.parse(data);
-        //console.log(cors_proxy_config);
+        console.log(cors_proxy_config);
       });
     });
     
@@ -135,50 +104,89 @@ function originAndHostControl(origin,host) {
 
 loadConfig()
 
+function refererToOrigin(referer) {
+  const myURL = new URL(referer);
+ return myURL.origin
+}
 
 
 function onRequest(client_req, client_res) {
-  //console.log('serve: ' + client_req.url);
-  
-  
-  const requestOrigin =  client_req.headers.origin
-  client_req.headers.host= extractHostname(client_req.url)
-  client_req.url = newUrl(client_req.url,  client_req.headers.host)
+ 
+  const requestURL = URL2.parse(client_req.url.substring(1))
+  const requestOrigin =  (client_req.headers.origin != undefined) ? client_req.headers.origin : refererToOrigin(client_req.headers.referer)
 
-  //console.log('HOST: ' + client_req.headers.host);
+  if ( requestURL.hostname == undefined ) {
+    client_res.writeHead(400);
+    client_res.end("host is not defined");
+    return
+  }
 
-  if (originAndHostControl(client_req.headers.origin,client_req.headers.host)) {
-  var options = {
-    hostname: client_req.headers.host,
-    port: 443,
-    path: client_req.url,
-    method: client_req.method,
-    headers: client_req.headers
-  };
-  var proxy = https.request(options, function (res) {
-    if (client_req.headers.origin != undefined) {
-      res.headers["Access-Control-Allow-Origin"] = requestOrigin
+  if ( ! (cors_proxy_config.origins == null || cors_proxy_config.origins == undefined || cors_proxy_config.origins == "") ){
+    if ( requestOrigin != null || requestOrigin != undefined || requestOrigin != "" ) {
+      if ( ! cors_proxy_config.origins.includes(URL2.parse(requestOrigin).hostname) ) {
+        client_res.writeHead(403);
+        console.log(URL2.parse(requestOrigin).hostname)
+        client_res.end("Origin is not allowed");
+        return
+      }
+    } else {
+      client_res.writeHead(403);
+      client_res.end("Origin or referer is not present in headers");
     }
-    client_res.writeHead(res.statusCode, res.headers)
-    res.pipe(client_res, {
-      end: true
-    });
-  });
+  }
+  
+  if ( ! (cors_proxy_config.hosts == null || cors_proxy_config.hosts == undefined || cors_proxy_config.hosts == "") ){
+    if ( requestURL.hostname != undefined || requestURL.hostname != null || requestURL.hostname != "") {
+      if ( ! cors_proxy_config.hosts.includes(requestURL.hostname) ) {
+        client_res.writeHead(403);
+        client_res.end("Host is not allowed");
+        return
+      }
+    } else {
+      client_res.writeHead(403);
+      client_res.end("host is not present in url");
+    }
+  }
 
-  proxy.on('error', function(err) {
-    client_res.writeHead(520);
-    client_res.end(err.toString());
-  });
+  client_req.headers.host= requestURL.hostname
+  client_req.url = newUrl(client_req.url,  requestURL.hostname)
 
-  client_req.pipe(proxy, {
-    end: true
-  });
-
-
-} else {
-    client_res.writeHead(403);
-    client_res.end("not allowed");
-}
-
+  switch (requestURL.protocol) {
+    case "http:":
+      
+      break;
+    case "https:":
+      var options = {
+        hostname: client_req.headers.host,
+        port: 443,
+        path: client_req.url,
+        method: client_req.method,
+        headers: client_req.headers
+      };
+      var proxy = https.request(options, function (res) {
+        if (client_req.headers.origin != undefined) {
+          res.headers["Access-Control-Allow-Origin"] = requestOrigin
+        }
+        client_res.writeHead(res.statusCode, res.headers)
+        res.pipe(client_res, {
+          end: true
+        });
+      });
+    
+      proxy.on('error', function(err) {
+        client_res.writeHead(520);
+        client_res.end(err.toString());
+      });
+    
+      client_req.pipe(proxy, {
+        end: true
+      });
+      break;
+    default:
+      client_res.writeHead(400);
+      client_res.end("unknown protocol");
+      break;
+  }
+  //console.log('HOST: ' + client_req.headers.host);
 loadConfig()
 }
