@@ -3,6 +3,7 @@ const { URL } = require('url');
 const  URL2 = require('url');
 
 const https = require('https');
+const http = require('http');
 
 const httpsOptions = {
     key: fs.readFileSync('/etc/ssl/private/cors_proxy.key'),
@@ -60,7 +61,7 @@ function newUrl(url,host) {
 
 
 // Load configuration from config url
-  if ( process.env.configurl != undefined && process.env.configurl != "" ) {
+if ( process.env.configurl != undefined && process.env.configurl != null && process.env.configurl != "" ) {
     function loadConfig() {
     const now = new Date()  
     const secondsSinceEpoch = Math.round(now.getTime() / 1000)  
@@ -104,45 +105,80 @@ function newUrl(url,host) {
 
 loadConfig()
 
-function refererToOrigin(referer) {
-  const myURL = new URL(referer);
+function refererToOrigin(referer){
+  if ( referer == undefined) {
+    return undefined
+  }
+  try {
+     myURL = new URL(referer);
+  }
+  catch(err) {
+    //console.log(err)
+    throw 'Url Parse ERR in referrerToOrigin'
+  }
+  
  return myURL.origin
 }
 
 
 function onRequest(client_req, client_res) {
  
-  const requestURL = URL2.parse(client_req.url.substring(1))
-  const requestOrigin =  (client_req.headers.origin != undefined) ? client_req.headers.origin : refererToOrigin(client_req.headers.referer)
+  try {
+    var requestURL = URL2.parse(client_req.url.substring(1))
+  }
+  catch(err) {
+    client_res.setHeader("OZR-err"  ,"Url parser err requestURL")
+    client_res.writeHead(403);
+    client_res.end("Url parser err requestURL");
+    return
+  }
+  
+  //console.log(requestURL.port + URL2.parse(requestOrigin).hostname)
 
+  try {
+    var requestOrigin =  (client_req.headers.origin != undefined) ? client_req.headers.origin : refererToOrigin(client_req.headers.referer)
+  }
+  catch(err) {
+    client_res.setHeader("OZR-err"  ,"Url parser err requestOrigin")
+    client_res.writeHead(403);
+    client_res.end("Url parser err requestOrigin");
+    return
+  }
+  
   if ( requestURL.hostname == undefined ) {
+    client_res.setHeader("OZR-err"  ,"host is not defined")
     client_res.writeHead(400);
     client_res.end("host is not defined");
     return
   }
 
-  if ( ! (cors_proxy_config.origins == null || cors_proxy_config.origins == undefined || cors_proxy_config.origins == "") ){
-    if ( requestOrigin != null || requestOrigin != undefined || requestOrigin != "" ) {
+  if ( ! (cors_proxy_config.origins == undefined || cors_proxy_config.origins == null || cors_proxy_config.origins == "") ){
+    if ( requestOrigin != undefined && requestOrigin != null && requestOrigin != "") {
       if ( ! cors_proxy_config.origins.includes(URL2.parse(requestOrigin).hostname) ) {
+        client_res.setHeader("OZR-err"  ,"Origin is not allowed")
         client_res.writeHead(403);
         console.log(URL2.parse(requestOrigin).hostname)
         client_res.end("Origin is not allowed");
         return
       }
     } else {
+      client_res.setHeader("OZR-err"  ,"Origin or referer is not present in headers")
       client_res.writeHead(403);
       client_res.end("Origin or referer is not present in headers");
+      return
     }
   }
   
-  if ( ! (cors_proxy_config.hosts == null || cors_proxy_config.hosts == undefined || cors_proxy_config.hosts == "") ){
+  if ( ! (cors_proxy_config.hosts == undefined || cors_proxy_config.hosts == null || cors_proxy_config.hosts == "") ){
     if ( requestURL.hostname != undefined || requestURL.hostname != null || requestURL.hostname != "") {
       if ( ! cors_proxy_config.hosts.includes(requestURL.hostname) ) {
+        client_res.setHeader("OZR-err"  ,"Host is not allowed")
         client_res.writeHead(403);
         client_res.end("Host is not allowed");
         return
       }
     } else {
+      client_res.setHeader("OZR-err"  ,"host is not present in url")
       client_res.writeHead(403);
       client_res.end("host is not present in url");
     }
@@ -164,7 +200,7 @@ function onRequest(client_req, client_res) {
         headers: client_req.headers
       };
       var proxy = https.request(options, function (res) {
-        if (client_req.headers.origin != undefined) {
+        if (requestOrigin != undefined) {
           res.headers["Access-Control-Allow-Origin"] = requestOrigin
         }
         client_res.writeHead(res.statusCode, res.headers)
@@ -183,6 +219,7 @@ function onRequest(client_req, client_res) {
       });
       break;
     default:
+      client_res.setHeader("OZR-err"  ,"unknown protocol")
       client_res.writeHead(400);
       client_res.end("unknown protocol");
       break;
