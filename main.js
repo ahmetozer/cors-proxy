@@ -21,6 +21,7 @@ var cors_proxy_config = {
 }
 
 var  configLastUpdate = 0
+const portRegex   = "^((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([1-9][0-9]{3})|([1-9][0-9]{2})|([1-9][0-9])|([1-9]))$"
 
 
 https.createServer(httpsOptions, onRequest).listen(443);
@@ -80,15 +81,18 @@ if ( process.env.configurl != undefined && process.env.configurl != null && proc
       res.on('end', function() {
     
         try {
-          JSON.parse(data);
+         var newcConfig = JSON.parse(data);
         } catch (e) {
         console.log("Setting Parse Error")
         return
         }
     
         configLastUpdate = secondsSinceEpoch
-        cors_proxy_config = JSON.parse(data);
-        console.log(cors_proxy_config);
+        if ( JSON.stringify(newcConfig) != JSON.stringify(cors_proxy_config) ) {
+          cors_proxy_config = JSON.parse(data);
+          console.log(cors_proxy_config);
+        }
+        
       });
     });
     
@@ -189,12 +193,36 @@ function onRequest(client_req, client_res) {
 
   switch (requestURL.protocol) {
     case "http:":
-      
+      var options = {
+        hostname: client_req.headers.host,
+        port: (RegExp(portRegex).test(requestURL.port)) ? requestURL.port : "80",
+        path: client_req.url,
+        method: client_req.method,
+        headers: client_req.headers
+      };
+      var proxy = http.request(options, function (res) {
+        if (requestOrigin != undefined) {
+          res.headers["Access-Control-Allow-Origin"] = requestOrigin
+        }
+        client_res.writeHead(res.statusCode, res.headers)
+        res.pipe(client_res, {
+          end: true
+        });
+      });
+    
+      proxy.on('error', function(err) {
+        client_res.writeHead(520);
+        client_res.end(err.toString());
+      });
+    
+      client_req.pipe(proxy, {
+        end: true
+      });
       break;
     case "https:":
       var options = {
         hostname: client_req.headers.host,
-        port: 443,
+        port: (RegExp(portRegex).test(requestURL.port)) ? requestURL.port : "443",
         path: client_req.url,
         method: client_req.method,
         headers: client_req.headers
