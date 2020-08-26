@@ -27,7 +27,7 @@ echo "Cors Proxy"
         echo "Your website certifaces are not ready."
         echo "Using self certiface"
         ## Check Certiface are exist
-        FILE="/etc/ssl/certs/nginx-selfsigned.crt"
+        FILE="/etc/ssl/certs/my_self_signed.crt"
         if [ -f "$FILE" ];
         then
             echo "$FILE exists."
@@ -36,7 +36,7 @@ echo "Cors Proxy"
             Create_Self_Certiface=1
         fi
 
-        FILE="/etc/ssl/private/nginx-selfsigned.key"
+        FILE="/etc/ssl/private/my_self_signed.key"
         if [ -f "$FILE" ];
         then
             echo "$FILE exists."
@@ -50,13 +50,13 @@ echo "Cors Proxy"
             openssl req \
             -x509 -nodes -days 365 \
             -newkey rsa:2048 \
-            -keyout /etc/ssl/private/nginx-selfsigned.key \
-            -out /etc/ssl/certs/nginx-selfsigned.crt \
+            -keyout /etc/ssl/private/my_self_signed.key \
+            -out /etc/ssl/certs/my_self_signed.crt \
             -subj "/C=US/ST=Denial/L=Springfield/O=Dis/CN=lg.example.com"
         fi
 
-        cat /etc/ssl/certs/nginx-selfsigned.crt > /etc/ssl/certs/cors_proxy.crt
-        cat /etc/ssl/private/nginx-selfsigned.key > /etc/ssl/private/cors_proxy.key
+        cat /etc/ssl/certs/my_self_signed.crt > /etc/ssl/certs/cors_proxy.crt
+        cat /etc/ssl/private/my_self_signed.key > /etc/ssl/private/cors_proxy.key
 
     else
         cat /etc/ssl/certs/project.crt > /etc/ssl/certs/cors_proxy.crt

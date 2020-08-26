@@ -24,7 +24,7 @@ var  configLastUpdate = 0
 const portRegex   = "^((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([1-9][0-9]{3})|([1-9][0-9]{2})|([1-9][0-9])|([1-9]))$"
 
 
-https.createServer(httpsOptions, onRequest).listen(443);
+https.createServer(httpsOptions, onRequest).listen( (RegExp(portRegex).test(process.env.port)) ? process.env.port : 443 );
 
 const loadint = (RegExp('^\\d+$').test(process.env.loadint)) ? process.env.loadint : 60
 
